@@ -24,9 +24,9 @@ def get_vocab_info(db: Session = Depends(get_db)):
         "api_active": True,
         "total_words": vocab_count,
         "endpoints": {
-            "get_all": "/vocabs/read",
-            "create": "/vocabs/create",
-            "update": "/vocabs/update/{word}"
+            "get all vocabs": "/vocabs/read",
+            "create vocab": "/vocabs/create",
+            "update vocab": "/vocabs/update/{word}"
         }
     }
 

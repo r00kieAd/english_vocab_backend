@@ -8,11 +8,15 @@ class VocabBase(BaseModel):
     meaning: Optional[str] = None
     example: Optional[str] = None
 
+class ScoreBase(BaseModel):
+    high_score: int
+    high_scorer: str
+
 class VocabCreate(VocabBase):
     pass
 
 class VocabUpdate(BaseModel):
-    type: Optional[str] = None
+    word_type: Optional[str] = None
     meaning: Optional[str] = None
     example: Optional[str] = None
 
@@ -23,3 +27,4 @@ class Vocab(VocabBase):
 
     class Config:
         from_attributes = True
+
