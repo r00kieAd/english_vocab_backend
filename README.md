@@ -65,10 +65,15 @@ After starting the server, visit:
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
 
+### Server Endpoints
+
+- `GET /` - Server health check and status
+
 ### Vocabulary Endpoints
 
+- `GET /vocabs/` - Get vocabulary endpoints information
 - `GET /vocabs/read` - Get all vocabulary entries
-- `POST /vocabs/create` - Add a new vocabulary entry
+- `POST /vocabs/create` - Create a new vocabulary entry
 - `PUT /vocabs/update/{word}` - Update an existing vocabulary entry
 
 Example vocabulary entry:
@@ -83,9 +88,10 @@ Example vocabulary entry:
 
 ### Score Endpoints
 
+- `GET /scores/` - Get score endpoints information
 - `GET /scores/all_scores` - Get all scores (leaderboard)
 - `GET /scores/high_score` - Get the highest score
-- `POST /scores/insert_score` - Add a new score entry
+- `POST /scores/insert_score` - Insert a new score entry
 
 Example score entry:
 ```json
