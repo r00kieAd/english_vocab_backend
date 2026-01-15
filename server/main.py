@@ -18,6 +18,6 @@ app.include_router(vocab_api_router)
 app.include_router(score_api_router)
 
 if __name__ == "__main__":
-    # host = os.getenv("HOST")
-    # port = int(os.getenv("PORT"))
+    host = os.getenv("HOST")
+    port = int(os.getenv("PORT"))
     uvicorn.run("main:app", host=host, port=port, reload=False)
