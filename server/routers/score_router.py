@@ -41,3 +41,14 @@ def get_high_score(db: Session = Depends(get_db)):
 @router.post("/insert_score", response_model=Score)
 def insert_score(score: ScoreCreate, db: Session = Depends(get_db)):
     return score_crud.create_score(db, score)
+
+@router.delete("/delete_score/{username}")
+def delete_score_by_username(username: str, db: Session = Depends(get_db)):
+    """Delete all score entries by username (case-insensitive)"""
+    deleted_count = score_crud.delete_score_by_username(db, username)
+    if deleted_count == 0:
+        raise HTTPException(status_code=404, detail=f"No score found for username: {username}")
+    return {
+        "message": f"Successfully deleted {deleted_count} record(s) for user: {username}",
+        "deleted_count": deleted_count
+    }

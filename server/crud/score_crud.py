@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from models.scores import ScoreSheet
 from schemas.scores import ScoreCreate
-from sqlalchemy import desc
+from sqlalchemy import desc, func
 
 
 def get_all_scores(db: Session):
@@ -22,3 +22,15 @@ def create_score(db: Session, score: ScoreCreate):
     db.commit()
     db.refresh(db_score)
     return db_score
+
+def delete_score_by_username(db: Session, username: str):
+    all_records = db.query(ScoreSheet).all()
+    
+    deleted_count = db.query(ScoreSheet).filter(
+        func.lower(ScoreSheet.high_scorer) == func.lower(username)
+    ).delete()
+    
+    print(f"DEBUG: Deleted count: {deleted_count}")
+    db.commit()
+    
+    return deleted_count
