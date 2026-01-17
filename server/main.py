@@ -1,11 +1,20 @@
 import os
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from routers.vocab_router import router as vocab_api_router
 from routers.score_router import router as score_api_router
 from database.database import engine, Base
 
 app = FastAPI(title="English Vocabulary API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 def on_startup():
