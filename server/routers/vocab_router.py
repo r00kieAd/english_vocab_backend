@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from schemas.vocab import VocabCreate, VocabUpdate, Vocab
+from schemas.vocab import VocabCreate, VocabUpdate, VocabsCreate, Vocab
 from crud import vocab_crud
 from database.database import SessionLocal, engine
 
@@ -36,6 +36,31 @@ def create_vocab(vocab: VocabCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Word already exists")
     return vocab_crud.create_vocab(db, vocab)
+
+@router.post("/bulk_create", response_model=dict)
+def bulk_create_vocab(vocabs: list[VocabCreate], db: Session = Depends(get_db)):
+    if not vocabs:
+        raise HTTPException(status_code=404, detail="No vocabs found in your request")
+    words_received = len(vocabs)
+    inserted_count = 0
+    existing_words = set()
+    try:
+        for vocab in vocabs:
+            if not vocab:
+                continue
+            existing = vocab_crud.get_vocab_by_word(db, vocab.word)
+            if existing:
+                existing_words.add(vocab.word)
+            else:
+                status = vocab_crud.create_vocab(db, vocab)
+                inserted_count += 1
+        return {
+            "words_received": words_received,
+            "words_inserted": inserted_count,
+            "existing_words": existing_words if existing_words else "none" 
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"unexpected error: {str(e)}, records inserted: {inserted_count}")
 
 @router.get("/read", response_model=list[Vocab])
 def read_vocabs(db: Session = Depends(get_db)):
