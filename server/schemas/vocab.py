@@ -15,6 +15,9 @@ class ScoreBase(BaseModel):
 class VocabCreate(VocabBase):
     pass
 
+class VocabsCreate(BaseModel):
+    vocabs: list[VocabBase]
+
 class VocabUpdate(BaseModel):
     word_type: Optional[str] = None
     meaning: Optional[str] = None
