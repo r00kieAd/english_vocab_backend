@@ -1,9 +1,10 @@
 import os
-
+import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.vocab_router import router as vocab_api_router
 from routers.score_router import router as score_api_router
+from routers.llm_router import router as llm_api_router
 from database.database import engine, Base
 
 app = FastAPI(title="English Vocabulary API")
@@ -26,9 +27,9 @@ async def root():
 
 app.include_router(vocab_api_router)
 app.include_router(score_api_router)
+app.include_router(llm_api_router)
 
 if __name__ == "__main__":
-    import uvicorn
 
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8000"))
