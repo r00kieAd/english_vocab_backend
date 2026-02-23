@@ -1,0 +1,29 @@
+{
+    "id": "20260223_b1bf1cc6-c198-44f9-9cd3-5fdf85d13080",
+    "choices": [
+        {
+            "finish_reason": "stop",
+            "index": 0,
+            "message": {
+                "content": " Here are some synonyms for the word **\"ardent\"** (meaning passionate or enthusiastic):  \n\n1. **Passionate**  \n2. **Enthusiastic**  \n3. **Fervent**  \n4. **Zealous**  \n5. **Eager**  \n6. **Devoted**  \n7. **Dedicated**  \n8. **Fiery**  \n9. **Intense**  \n10. **Committed**  \n\n**Example usage:**  \n- *She is a **fervent** advocate for human rights.*  \n- *His **zealous** support for the team was inspiring.*  \n\nWould you like synonyms with a specific nuance (e.g., more formal, poetic, or region-specific)?",
+                "role": "assistant",
+                "refusal": null,
+                "reasoning_content": null,
+                "tool_calls": []
+            },
+            "logprobs": null
+        }
+    ],
+    "created": 1771827326,
+    "model": "sarvam-m",
+    "object": "chat.completion",
+    "usage": {
+        "completion_tokens": 168,
+        "prompt_tokens": 42,
+        "total_tokens": 210,
+        "completion_tokens_details": null,
+        "prompt_tokens_details": null
+    },
+    "service_tier": null,
+    "system_fingerprint": null
+}
