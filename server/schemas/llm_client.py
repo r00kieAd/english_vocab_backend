@@ -16,3 +16,21 @@ class GetAnswers(BaseModel):
 class ClientResponse(BaseModel):
     status_code: int
     details: str
+
+class TextToSpeechReq(BaseModel):
+    text: str
+    target_language: str = "bn-IN"
+    speaker: str = "anushka"
+    model: str = "bulbul:v2"
+
+class TextToSpeechLLMRes(BaseModel):
+    req_id: Optional[str] = None
+    audio: list[str]
+
+class TextToSpeechRes(BaseModel):
+    original_text: str
+    target_language: str
+    speaker: str
+    model: str
+    llm_res: TextToSpeechLLMRes
+

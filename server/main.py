@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers.vocab_router import router as vocab_api_router
 from routers.score_router import router as score_api_router
 from routers.llm_router import router as llm_api_router
+from routers.text_to_speech import router as text_to_speech_router
 from database.database import engine, Base
 
 app = FastAPI(title="English Vocabulary API")
@@ -28,6 +29,8 @@ async def root():
 app.include_router(vocab_api_router)
 app.include_router(score_api_router)
 app.include_router(llm_api_router)
+app.include_router(text_to_speech_router)
+
 
 if __name__ == "__main__":
 
