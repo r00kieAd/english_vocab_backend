@@ -19,7 +19,7 @@ def get_ai_answer(user_query: SendPrompt):
         if user_query.example:
             original_context.append(user_query.example)
         if not user_instructions:
-            user_instructions = "You are a english professor. No need to explain the word. Only answer what's asked, Nothing extra. Do not answer anything not related to vocabulary"
+            user_instructions = "You are a english professor. No need to explain the word. Only answer what's asked, Nothing extra."
         
         context = "\n".join(original_context)
         context.strip()
