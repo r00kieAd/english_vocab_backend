@@ -12,11 +12,19 @@ class ScoreBase(BaseModel):
     high_score: int
     high_scorer: str
 
+
 class VocabCreate(VocabBase):
     pass
 
 class VocabsCreate(BaseModel):
     vocabs: list[VocabBase]
+
+class VocabCount(BaseModel):
+    word_type: str
+    count: int
+
+class VocabTypes(BaseModel):
+    word_types: list[str]
 
 class VocabUpdate(BaseModel):
     word_type: Optional[str] = None
