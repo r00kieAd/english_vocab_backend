@@ -73,10 +73,13 @@ After starting the server, visit:
 
 - `GET /vocabs/` - Get vocabulary endpoints information
 - `GET /vocabs/read` - Get all vocabulary entries
+- `GET /vocabs/read/vocab_types` - Get all the word types
+- `GET /vocabs/read/count/{word_type}` - Get the count of specific word type
+- `GET /vocabs/read/{word_type}?{word_count}` - Get all the words of a specific word type, limit optional
 - `POST /vocabs/create` - Create a new vocabulary entry
 - `PUT /vocabs/update/{word}` - Update an existing vocabulary entry
 
-Example vocabulary entry:
+Example vocabulary response:
 ```json
 {
     "word": "ardent",
@@ -93,33 +96,12 @@ Example vocabulary entry:
 - `GET /scores/high_score` - Get the highest score
 - `POST /scores/insert_score` - Insert a new score entry
 
-Example score entry:
+Example score response:
 ```json
 {
     "high_score": 100,
     "high_scorer": "Player1"
 }
-```
-
-## Project Structure
-
-```
-server/
-├── crud/
-│   ├── vocab_crud.py
-│   └── score_crud.py
-├── database/
-│   └── database.py
-├── models/
-│   ├── vocab.py
-│   └── scores.py
-├── routers/
-│   ├── vocab_router.py
-│   └── score_router.py
-├── schemas/
-│   ├── vocab.py
-│   └── scores.py
-└── main.py
 ```
 
 ## Development
