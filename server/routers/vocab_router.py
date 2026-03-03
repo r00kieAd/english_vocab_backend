@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from schemas.vocab import VocabCreate, VocabUpdate, VocabsCreate, Vocab
+from typing import Optional
+from schemas.vocab import VocabCreate, VocabUpdate, Vocab, VocabCount, VocabTypes
 from crud import vocab_crud
 from database.database import SessionLocal, engine
 
@@ -18,13 +19,15 @@ def get_db():
 
 @router.get("/", response_model=dict)
 def get_vocab_info(db: Session = Depends(get_db)):
-    """Get information about the vocabulary endpoints"""
     vocab_count = len(vocab_crud.get_all_vocab(db))
     return {
         "api_active": True,
         "total_words": vocab_count,
         "endpoints": {
             "get all vocabs": "/vocabs/read",
+            "get all vocab types": "/vocabs/read/vocab_types",
+            "get vocabs by type": "/vocabs/read/{word_type}/{word_count}",
+            "get count for vocab types": "/vocabs/read/count/{word_type}",
             "create vocab": "/vocabs/create",
             "update vocab": "/vocabs/update/{word}"
         }
@@ -65,6 +68,22 @@ def bulk_create_vocab(vocabs: list[VocabCreate], db: Session = Depends(get_db)):
 @router.get("/read", response_model=list[Vocab])
 def read_vocabs(db: Session = Depends(get_db)):
     return vocab_crud.get_all_vocab(db)
+
+@router.get("/read/vocab_types", response_model=VocabTypes)
+def read_vocab_types(db: Session = Depends(get_db)):
+    return vocab_crud.get_all_word_types(db)
+
+@router.get("/read/{word_type}", response_model=list[Vocab])
+def get_vocab_list_with_type(word_type: str, word_count: Optional[int] = None, db: Session = Depends(get_db)):
+    if not word_type or len(word_type.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Invalid word type")
+    return vocab_crud.get_vocab_by_type(db, word_type, word_count)
+
+@router.get("/read/count/{word_type}", response_model=VocabCount)
+def get_vocab_count_by_type(word_type: str, db: Session = Depends(get_db)):
+    if not word_type or len(word_type.strip()) == 0:
+        raise HTTPException(status_code=400, detail="Invalid word type")
+    return vocab_crud.get_vocab_by_count(db=db, word_type=word_type)
 
 @router.put("/update/{word}", response_model=Vocab)
 def update_vocab(word: str, vocab_update: VocabUpdate, db: Session = Depends(get_db)):
