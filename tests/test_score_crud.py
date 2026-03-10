@@ -1,247 +1,158 @@
-import pytest
-from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 
-from models.scores import ScoreSheet
-from schemas.scores import ScoreCreate
-from crud.score_crud import (
-    get_all_scores,
-    get_high_score,
-    create_score,
-    delete_score_by_username,
-)
+from crud import score_crud
+from schemas.scores import Score, ScoreCreate
 
 
-class TestGetAllScores:
-    """Test get_all_scores function"""
-    
-    def test_get_all_scores_empty(self, test_db_session: Session):
-        """Test getting all scores when database is empty"""
-        scores = get_all_scores(test_db_session)
-        assert scores == []
-    
-    def test_get_all_scores_ordered_by_high_score(self, test_db_session: Session):
-        """Test that scores are returned ordered by high_score descending"""
-        # Create scores in random order
-        score1 = ScoreCreate(high_score=100, high_scorer="Alice")
-        score2 = ScoreCreate(high_score=500, high_scorer="Bob")
-        score3 = ScoreCreate(high_score=250, high_scorer="Charlie")
-        
-        create_score(test_db_session, score1)
-        create_score(test_db_session, score2)
-        create_score(test_db_session, score3)
-        
-        scores = get_all_scores(test_db_session)
-        
-        assert len(scores) == 3
-        assert scores[0].high_score == 500
-        assert scores[1].high_score == 250
-        assert scores[2].high_score == 100
-    
-    def test_get_all_scores_with_duplicate_scores(self, test_db_session: Session):
-        """Test getting scores when multiple users have same score"""
-        score1 = ScoreCreate(high_score=300, high_scorer="User1")
-        score2 = ScoreCreate(high_score=300, high_scorer="User2")
-        score3 = ScoreCreate(high_score=200, high_scorer="User3")
-        
-        create_score(test_db_session, score1)
-        create_score(test_db_session, score2)
-        create_score(test_db_session, score3)
-        
-        scores = get_all_scores(test_db_session)
-        
-        assert len(scores) == 3
-        # Top two should be 300
-        assert scores[0].high_score == 300
-        assert scores[1].high_score == 300
-        assert scores[2].high_score == 200
+def test_get_all_scores_orders_by_high_score(monkeypatch):
+    records = [
+        {"id": 1, "high_score": 10, "high_scorer": "alpha", "date_modified": "2026-03-10T00:00:00Z"},
+        {"id": 2, "high_score": 50, "high_scorer": "bravo", "date_modified": "2026-03-10T00:00:01Z"},
+        {"id": 3, "high_score": 30, "high_scorer": "charlie", "date_modified": "2026-03-10T00:00:02Z"},
+    ]
+    called = {}
+
+    def fake_request(method, url, **kwargs):
+        called["method"] = method
+        called["url"] = url
+        return records
+
+    monkeypatch.setattr(score_crud, "_request", fake_request)
+
+    results = score_crud.get_all_scores()
+
+    assert called["method"] == "GET"
+    assert [score.high_score for score in results] == [50, 30, 10]
+    assert results[0].high_scorer == "bravo"
 
 
-class TestGetHighScore:
-    """Test get_high_score function"""
-    
-    def test_get_high_score_with_one_entry(self, test_db_session: Session):
-        """Test getting high score when only one entry exists"""
-        score = ScoreCreate(high_score=150, high_scorer="SingleUser")
-        created = create_score(test_db_session, score)
-        
-        result = get_high_score(test_db_session)
-        
-        assert result is not None
-        assert result.high_score == 150
-        assert result.high_scorer == "SingleUser"
-    
-    def test_get_high_score_with_multiple_entries(self, test_db_session: Session):
-        """Test that get_high_score returns the highest score"""
-        score1 = ScoreCreate(high_score=100, high_scorer="User1")
-        score2 = ScoreCreate(high_score=999, high_scorer="User2")
-        score3 = ScoreCreate(high_score=500, high_scorer="User3")
-        
-        create_score(test_db_session, score1)
-        create_score(test_db_session, score2)
-        create_score(test_db_session, score3)
-        
-        result = get_high_score(test_db_session)
-        
-        assert result.high_score == 999
-        assert result.high_scorer == "User2"
-    
-    def test_get_high_score_empty_database(self, test_db_session: Session):
-        """Test get_high_score when database is empty"""
-        result = get_high_score(test_db_session)
-        assert result is None
-    
-    def test_get_high_score_after_updates(self, test_db_session: Session):
-        """Test that high score updates correctly as new scores are added"""
-        score1 = ScoreCreate(high_score=100, high_scorer="User1")
-        create_score(test_db_session, score1)
-        
-        result = get_high_score(test_db_session)
+def test_get_high_score_returns_none_when_no_scores(monkeypatch):
+    monkeypatch.setattr(score_crud, "get_all_scores", lambda: [])
+    assert score_crud.get_high_score() is None
+
+
+    def test_get_high_score_returns_highest(monkeypatch):
+        sample_scores = [
+            Score(id=1, high_score=10, high_scorer="alpha", date_created=datetime.now(timezone.utc)),
+            Score(id=2, high_score=100, high_scorer="beta", date_created=datetime.now(timezone.utc)),
+            Score(id=3, high_score=50, high_scorer="charlie", date_created=datetime.now(timezone.utc)),
+        ]
+        monkeypatch.setattr(
+            score_crud,
+            "get_all_scores",
+            lambda: sorted(sample_scores, key=lambda s: s.high_score, reverse=True),
+        )
+
+        result = score_crud.get_high_score()
+
         assert result.high_score == 100
-        
-        # Add higher score
-        score2 = ScoreCreate(high_score=300, high_scorer="User2")
-        create_score(test_db_session, score2)
-        
-        result = get_high_score(test_db_session)
-        assert result.high_score == 300
+        assert result.high_scorer == "beta"
 
 
-class TestCreateScore:
-    """Test create_score function"""
-    
-    def test_create_score_basic(self, test_db_session: Session):
-        """Test creating a score entry"""
-        score_create = ScoreCreate(high_score=250, high_scorer="TestUser")
-        
-        result = create_score(test_db_session, score_create)
-        
-        assert result.id is not None
-        assert result.high_score == 250
-        assert result.high_scorer == "TestUser"
-        assert result.date_created is not None
-    
-    def test_create_score_zero_score(self, test_db_session: Session):
-        """Test creating a score with zero value"""
-        score_create = ScoreCreate(high_score=0, high_scorer="NewUser")
-        
-        result = create_score(test_db_session, score_create)
-        
-        assert result.high_score == 0
-        assert result.high_scorer == "NewUser"
-    
-    def test_create_score_negative_score(self, test_db_session: Session):
-        """Test creating a score with negative value"""
-        score_create = ScoreCreate(high_score=-100, high_scorer="NegativeUser")
-        
-        result = create_score(test_db_session, score_create)
-        
-        assert result.high_score == -100
-    
-    def test_create_score_large_score(self, test_db_session: Session):
-        """Test creating a score with large value"""
-        score_create = ScoreCreate(high_score=999999, high_scorer="HighScorer")
-        
-        result = create_score(test_db_session, score_create)
-        
-        assert result.high_score == 999999
-    
-    def test_create_score_duplicate_usernames(self, test_db_session: Session):
-        """Test that duplicate usernames are allowed"""
-        score1 = ScoreCreate(high_score=100, high_scorer="SameUser")
-        score2 = ScoreCreate(high_score=200, high_scorer="SameUser")
-        
-        result1 = create_score(test_db_session, score1)
-        result2 = create_score(test_db_session, score2)
-        
-        assert result1.high_scorer == "SameUser"
-        assert result2.high_scorer == "SameUser"
-        assert result1.id != result2.id  # Different records
-    
-    def test_create_score_timestamps(self, test_db_session: Session):
-        """Test that date_created is set"""
-        before_create = datetime.utcnow()
-        score_create = ScoreCreate(high_score=123, high_scorer="TimeUser")
-        result = create_score(test_db_session, score_create)
-        after_create = datetime.utcnow()
-        
-        assert before_create <= result.date_created <= after_create
+def test_get_top_scores_limits(monkeypatch):
+    sample_scores = [
+        Score(id=1, high_score=30, high_scorer="alpha", date_created=datetime.now(timezone.utc)),
+        Score(id=2, high_score=20, high_scorer="beta", date_created=datetime.now(timezone.utc)),
+        Score(id=3, high_score=10, high_scorer="charlie", date_created=datetime.now(timezone.utc)),
+        Score(id=4, high_score=5, high_scorer="delta", date_created=datetime.now(timezone.utc)),
+    ]
+    monkeypatch.setattr(score_crud, "get_all_scores", lambda: sample_scores)
+
+    top_scores = score_crud.get_top_scores(3)
+
+    assert len(top_scores) == 3
+    assert top_scores[0].high_score == 30
 
 
-class TestDeleteScoreByUsername:
-    """Test delete_score_by_username function"""
-    
-    def test_delete_score_by_username_single_record(self, test_db_session: Session):
-        """Test deleting a single score by username"""
-        score = ScoreCreate(high_score=100, high_scorer="ToBeDeleted")
-        create_score(test_db_session, score)
-        
-        deleted_count = delete_score_by_username(test_db_session, "ToBeDeleted")
-        
-        assert deleted_count == 1
-        remaining = get_all_scores(test_db_session)
-        assert len(remaining) == 0
-    
-    def test_delete_score_by_username_multiple_records(self, test_db_session: Session):
-        """Test deleting multiple scores for same username"""
-        score1 = ScoreCreate(high_score=100, high_scorer="User")
-        score2 = ScoreCreate(high_score=200, high_scorer="User")
-        score3 = ScoreCreate(high_score=300, high_scorer="Other")
-        
-        create_score(test_db_session, score1)
-        create_score(test_db_session, score2)
-        create_score(test_db_session, score3)
-        
-        deleted_count = delete_score_by_username(test_db_session, "User")
-        
-        assert deleted_count == 2
-        remaining = get_all_scores(test_db_session)
-        assert len(remaining) == 1
-        assert remaining[0].high_scorer == "Other"
-    
-    def test_delete_score_by_username_case_insensitive(self, test_db_session: Session):
-        """Test that deletion is case-insensitive"""
-        score = ScoreCreate(high_score=100, high_scorer="CaseSensitive")
-        create_score(test_db_session, score)
-        
-        # Try deleting with different case
-        deleted_count = delete_score_by_username(test_db_session, "casesensitive")
-        
-        assert deleted_count == 1
-        remaining = get_all_scores(test_db_session)
-        assert len(remaining) == 0
-    
-    def test_delete_score_by_username_nonexistent_user(self, test_db_session: Session):
-        """Test deleting a non-existent user returns 0"""
-        score = ScoreCreate(high_score=100, high_scorer="ExistingUser")
-        create_score(test_db_session, score)
-        
-        deleted_count = delete_score_by_username(test_db_session, "NonexistentUser")
-        
-        assert deleted_count == 0
-        # Check that no records were deleted
-        remaining = get_all_scores(test_db_session)
-        assert len(remaining) == 1
-    
-    def test_delete_score_by_username_empty_database(self, test_db_session: Session):
-        """Test deleting from empty database"""
-        deleted_count = delete_score_by_username(test_db_session, "AnyUser")
-        
-        assert deleted_count == 0
-    
-    def test_delete_score_by_username_mixed_case_entries(self, test_db_session: Session):
-        """Test deleting when multiple case variations exist"""
-        score1 = ScoreCreate(high_score=100, high_scorer="TestUser")
-        score2 = ScoreCreate(high_score=200, high_scorer="testuser")
-        score3 = ScoreCreate(high_score=300, high_scorer="TESTUSER")
-        
-        create_score(test_db_session, score1)
-        create_score(test_db_session, score2)
-        create_score(test_db_session, score3)
-        
-        # Delete with any case variation
-        deleted_count = delete_score_by_username(test_db_session, "testuser")
-        
-        assert deleted_count == 3  # All case variations should be deleted
-        remaining = get_all_scores(test_db_session)
-        assert len(remaining) == 0
+def test_create_score_posts_payload(monkeypatch):
+    score_create = ScoreCreate(high_score=75, high_scorer="tester")
+    called = {}
+
+    def fake_request(method, url, **kwargs):
+        called["method"] = method
+        called["url"] = url
+        called["json"] = kwargs.get("json")
+        return {"id": 10, "high_score": 75, "high_scorer": "tester", "date_modified": "2026-03-10T01:00:00Z"}
+
+    monkeypatch.setattr(score_crud, "get_all_scores", lambda: [])
+    monkeypatch.setattr(score_crud, "_request", fake_request)
+
+    result = score_crud.create_score(score_create)
+
+    assert called["method"] == "POST"
+    assert called["json"] == score_create.model_dump()
+    assert result.id == 10
+    assert result.high_scorer == "tester"
+    assert result.date_created.isoformat().startswith("2026-03-10T01:00:00")
+
+
+def test_create_score_updates_when_higher(monkeypatch):
+    existing = Score(id=1, high_score=50, high_scorer="lonefox", date_created=datetime.now(timezone.utc))
+    called = {}
+
+    def fake_request(method, url, **kwargs):
+        called["method"] = method
+        called["url"] = url
+        called["json"] = kwargs.get("json")
+        return {"id": 1, "high_score": 60, "high_scorer": "lonefox", "date_modified": "2026-03-10T02:00:00Z"}
+
+    monkeypatch.setattr(score_crud, "get_all_scores", lambda: [existing])
+    monkeypatch.setattr(score_crud, "_format_update_url", lambda record_id: f"https://example/{record_id}")
+    monkeypatch.setattr(score_crud, "_request", fake_request)
+
+    result = score_crud.create_score(ScoreCreate(high_score=60, high_scorer="loneFox"))
+
+    assert called["method"] == "PUT"
+    assert called["url"] == "https://example/1"
+    assert result.high_score == 60
+
+
+def test_create_score_returns_existing_when_lower(monkeypatch):
+    existing = Score(id=1, high_score=50, high_scorer="lonefox", date_created=datetime.now(timezone.utc))
+    monkeypatch.setattr(score_crud, "get_all_scores", lambda: [existing])
+    monkeypatch.setattr(score_crud, "_request", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("Should not call _request")))
+
+    result = score_crud.create_score(ScoreCreate(high_score=40, high_scorer="loneFox"))
+
+    assert result.high_score == 50
+
+
+def test_delete_score_by_username_deletes_matches(monkeypatch):
+    sample = [
+        Score(id=1, high_score=100, high_scorer="Match", date_created=datetime.now(timezone.utc)),
+        Score(id=2, high_score=200, high_scorer="Other", date_created=datetime.now(timezone.utc)),
+        Score(id=3, high_score=150, high_scorer="match", date_created=datetime.now(timezone.utc)),
+    ]
+    deleted_urls = []
+
+    def fake_request(method, url, **kwargs):
+        if method == "DELETE":
+            deleted_urls.append(url)
+            return None
+        return []
+
+    monkeypatch.setattr(score_crud, "get_all_scores", lambda: sample)
+    monkeypatch.setattr(score_crud, "_format_update_url", lambda record_id: f"https://example/{record_id}")
+    monkeypatch.setattr(score_crud, "_request", fake_request)
+
+    deleted = score_crud.delete_score_by_username("match")
+
+    assert deleted == 2
+    assert deleted_urls == ["https://example/1", "https://example/3"]
+
+
+def test_delete_score_by_username_returns_zero_when_not_found(monkeypatch):
+    monkeypatch.setattr(score_crud, "get_all_scores", lambda: [])
+    called = False
+
+    def fake_request(method, url, **kwargs):
+        nonlocal called
+        called = True
+        return None
+
+    monkeypatch.setattr(score_crud, "_request", fake_request)
+
+    deleted = score_crud.delete_score_by_username("missing")
+
+    assert deleted == 0
+    assert not called

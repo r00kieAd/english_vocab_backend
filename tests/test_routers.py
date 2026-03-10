@@ -1,11 +1,63 @@
+from datetime import datetime, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from schemas.vocab import VocabCreate
-from schemas.scores import ScoreCreate
+from schemas.scores import Score, ScoreCreate
 from crud.vocab_crud import create_vocab
-from crud.score_crud import create_score
+from crud import score_crud
+
+
+@pytest.fixture(autouse=True)
+def fake_score_store(monkeypatch):
+    records: list[dict] = []
+    next_id = {"value": 1}
+
+    def _build_record(score_data: dict) -> dict:
+        timestamp = datetime.now(timezone.utc)
+        record = {
+            "id": next_id["value"],
+            "high_score": score_data["high_score"],
+            "high_scorer": score_data["high_scorer"],
+            "date_created": timestamp,
+            "date_modified": timestamp,
+        }
+        next_id["value"] += 1
+        return record
+
+    def create_record(score_create: ScoreCreate) -> Score:
+        record = _build_record(score_create.model_dump())
+        records.append(record)
+        return Score(**record)
+
+    def get_all_scores() -> list[Score]:
+        sorted_records = sorted(records, key=lambda r: r["high_score"], reverse=True)
+        return [Score(**record) for record in sorted_records]
+
+    def get_high_score() -> Score | None:
+        stored = get_all_scores()
+        return stored[0] if stored else None
+
+    def delete_score_by_username(username: str) -> int:
+        matches = [record for record in records if record["high_scorer"].lower() == username.lower()]
+        if not matches:
+            return 0
+        remaining = [record for record in records if record["high_scorer"].lower() != username.lower()]
+        records.clear()
+        records.extend(remaining)
+        return len(matches)
+
+    def get_top_scores(limit: int = 3) -> list[Score]:
+        return get_all_scores()[:limit]
+
+    monkeypatch.setattr(score_crud, "create_score", create_record)
+    monkeypatch.setattr(score_crud, "get_all_scores", get_all_scores)
+    monkeypatch.setattr(score_crud, "get_high_score", get_high_score)
+    monkeypatch.setattr(score_crud, "get_top_scores", get_top_scores)
+    monkeypatch.setattr(score_crud, "delete_score_by_username", delete_score_by_username)
+    yield
 
 
 class TestVocabRouter:
@@ -180,162 +232,162 @@ class TestVocabRouter:
 
 class TestScoreRouter:
     """Integration tests for score router endpoints"""
-    
-    def test_score_root_endpoint_empty(self, test_client: TestClient, test_db_session: Session):
+
+    def test_score_root_endpoint_empty(self, test_client: TestClient):
         """Test GET /scores/ returns info with 0 scores"""
         response = test_client.get("/scores/")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["api_active"] is True
         assert data["total_scores"] == 0
         assert "endpoints" in data
-    
-    def test_score_root_endpoint_with_data(self, test_client: TestClient, test_db_session: Session):
+
+    def test_score_root_endpoint_with_data(self, test_client: TestClient):
         """Test GET /scores/ returns correct score count"""
-        # Create some scores
-        score1 = ScoreCreate(high_score=100, high_scorer="User1")
-        score2 = ScoreCreate(high_score=200, high_scorer="User2")
-        create_score(test_db_session, score1)
-        create_score(test_db_session, score2)
-        
+        score1 = {"high_score": 100, "high_scorer": "User1"}
+        score2 = {"high_score": 200, "high_scorer": "User2"}
+        test_client.post("/scores/insert_score", json=score1)
+        test_client.post("/scores/insert_score", json=score2)
+
         response = test_client.get("/scores/")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["total_scores"] == 2
-    
-    def test_get_all_scores_empty(self, test_client: TestClient, test_db_session: Session):
+
+    def test_get_all_scores_empty(self, test_client: TestClient):
         """Test GET /scores/all_scores returns empty list"""
         response = test_client.get("/scores/all_scores")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data == []
-    
-    def test_get_all_scores_with_data(self, test_client: TestClient, test_db_session: Session):
+
+    def test_get_all_scores_with_data(self, test_client: TestClient):
         """Test GET /scores/all_scores returns scores sorted by score"""
-        # Create scores in random order
-        create_score(test_db_session, ScoreCreate(high_score=100, high_scorer="User1"))
-        create_score(test_db_session, ScoreCreate(high_score=500, high_scorer="User2"))
-        create_score(test_db_session, ScoreCreate(high_score=250, high_scorer="User3"))
-        
+        payloads = [
+            {"high_score": 100, "high_scorer": "User1"},
+            {"high_score": 500, "high_scorer": "User2"},
+            {"high_score": 250, "high_scorer": "User3"},
+        ]
+        for payload in payloads:
+            test_client.post("/scores/insert_score", json=payload)
+
         response = test_client.get("/scores/all_scores")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 3
-        # Should be sorted by score descending
         assert data[0]["high_score"] == 500
         assert data[1]["high_score"] == 250
         assert data[2]["high_score"] == 100
-    
-    def test_get_high_score_success(self, test_client: TestClient, test_db_session: Session):
+
+    def test_get_high_score_success(self, test_client: TestClient):
         """Test GET /scores/high_score returns highest score"""
-        create_score(test_db_session, ScoreCreate(high_score=100, high_scorer="User1"))
-        create_score(test_db_session, ScoreCreate(high_score=999, high_scorer="User2"))
-        create_score(test_db_session, ScoreCreate(high_score=500, high_scorer="User3"))
-        
+        test_client.post("/scores/insert_score", json={"high_score": 100, "high_scorer": "User1"})
+        test_client.post("/scores/insert_score", json={"high_score": 999, "high_scorer": "User2"})
+        test_client.post("/scores/insert_score", json={"high_score": 500, "high_scorer": "User3"})
+
         response = test_client.get("/scores/high_score")
-        
+
         assert response.status_code == 200
         data = response.json()
-        assert data["high_score"] == 999
-        assert data["high_scorer"] == "User2"
-    
-    def test_get_high_score_empty(self, test_client: TestClient, test_db_session: Session):
+        assert len(data) == 3
+        assert data[0]["high_score"] == 999
+        assert data[0]["high_scorer"] == "User2"
+
+    def test_get_high_score_empty(self, test_client: TestClient):
         """Test GET /scores/high_score returns 404 when no scores exist"""
         response = test_client.get("/scores/high_score")
-        
+
         assert response.status_code == 404
         assert "No scores found" in response.json()["detail"]
-    
-    def test_insert_score_success(self, test_client: TestClient, test_db_session: Session):
+
+    def test_insert_score_success(self, test_client: TestClient):
         """Test POST /scores/insert_score creates a new score"""
         payload = {"high_score": 350, "high_scorer": "TestUser"}
-        
+
         response = test_client.post("/scores/insert_score", json=payload)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["high_score"] == 350
         assert data["high_scorer"] == "TestUser"
         assert "id" in data
         assert "date_created" in data
-    
-    def test_insert_score_zero(self, test_client: TestClient, test_db_session: Session):
+
+    def test_insert_score_zero(self, test_client: TestClient):
         """Test inserting score with zero value"""
         payload = {"high_score": 0, "high_scorer": "ZeroUser"}
-        
+
         response = test_client.post("/scores/insert_score", json=payload)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["high_score"] == 0
-    
-    def test_insert_score_negative(self, test_client: TestClient, test_db_session: Session):
+
+    def test_insert_score_negative(self, test_client: TestClient):
         """Test inserting negative score"""
         payload = {"high_score": -50, "high_scorer": "NegativeUser"}
-        
+
         response = test_client.post("/scores/insert_score", json=payload)
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["high_score"] == -50
-    
-    def test_delete_score_by_username_success(self, test_client: TestClient, test_db_session: Session):
+
+    def test_delete_score_by_username_success(self, test_client: TestClient):
         """Test DELETE /scores/delete_score/{username}"""
-        # Create some scores
-        create_score(test_db_session, ScoreCreate(high_score=100, high_scorer="ToDelete"))
-        create_score(test_db_session, ScoreCreate(high_score=200, high_scorer="ToKeep"))
-        
+        test_client.post("/scores/insert_score", json={"high_score": 100, "high_scorer": "ToDelete"})
+        test_client.post("/scores/insert_score", json={"high_score": 200, "high_scorer": "ToKeep"})
+
         response = test_client.delete("/scores/delete_score/ToDelete")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["deleted_count"] == 1
         assert "ToDelete" in data["message"]
-        
-        # Verify deletion
+
         remaining_response = test_client.get("/scores/all_scores")
         remaining_data = remaining_response.json()
         assert len(remaining_data) == 1
         assert remaining_data[0]["high_scorer"] == "ToKeep"
-    
-    def test_delete_score_by_username_multiple_records(self, test_client: TestClient, test_db_session: Session):
+
+    def test_delete_score_by_username_multiple_records(self, test_client: TestClient):
         """Test deleting multiple records for same username"""
-        create_score(test_db_session, ScoreCreate(high_score=100, high_scorer="MultiUser"))
-        create_score(test_db_session, ScoreCreate(high_score=200, high_scorer="MultiUser"))
-        create_score(test_db_session, ScoreCreate(high_score=300, high_scorer="Other"))
-        
+        test_client.post("/scores/insert_score", json={"high_score": 100, "high_scorer": "MultiUser"})
+        test_client.post("/scores/insert_score", json={"high_score": 200, "high_scorer": "MultiUser"})
+        test_client.post("/scores/insert_score", json={"high_score": 300, "high_scorer": "Other"})
+
         response = test_client.delete("/scores/delete_score/MultiUser")
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["deleted_count"] == 2
-    
-    def test_delete_score_by_username_case_insensitive(self, test_client: TestClient, test_db_session: Session):
+
+    def test_delete_score_by_username_case_insensitive(self, test_client: TestClient):
         """Test that deletion is case-insensitive"""
-        create_score(test_db_session, ScoreCreate(high_score=100, high_scorer="CaseTest"))
-        
+        test_client.post("/scores/insert_score", json={"high_score": 100, "high_scorer": "CaseTest"})
+
         response = test_client.delete("/scores/delete_score/casetest")
-        
+
         assert response.status_code == 200
         assert response.json()["deleted_count"] == 1
-    
-    def test_delete_score_by_username_not_found(self, test_client: TestClient, test_db_session: Session):
+
+    def test_delete_score_by_username_not_found(self, test_client: TestClient):
         """Test deleting non-existent username returns 404"""
-        create_score(test_db_session, ScoreCreate(high_score=100, high_scorer="Existing"))
-        
+        test_client.post("/scores/insert_score", json={"high_score": 100, "high_scorer": "Existing"})
+
         response = test_client.delete("/scores/delete_score/NonExistent")
-        
+
         assert response.status_code == 404
         assert "No score found" in response.json()["detail"]
-    
-    def test_delete_score_by_username_empty_database(self, test_client: TestClient, test_db_session: Session):
+
+    def test_delete_score_by_username_empty_database(self, test_client: TestClient):
         """Test deleting from empty database returns 404"""
         response = test_client.delete("/scores/delete_score/AnyUser")
-        
+
         assert response.status_code == 404
 
 
