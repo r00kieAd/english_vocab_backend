@@ -33,7 +33,6 @@ def test_db_session(test_db_engine):
 @pytest.fixture(scope="function")
 def test_client(test_db_session):
     from routers.vocab_router import get_db as vocab_get_db
-    from routers.score_router import get_db as score_get_db
 
     def override_get_db():
         try:
@@ -42,7 +41,6 @@ def test_client(test_db_session):
             pass
 
     app.dependency_overrides[vocab_get_db] = override_get_db
-    app.dependency_overrides[score_get_db] = override_get_db
 
     yield TestClient(app)
 
