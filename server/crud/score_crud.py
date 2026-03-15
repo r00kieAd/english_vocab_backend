@@ -39,15 +39,18 @@ def _absolute_url(path: str) -> str:
 
 
 def _format_update_url(record_id: int) -> str:
-    template = _require_env("SCORE_UPDATED", _SCORE_UPDATED)
+    template = _require_env("SCORE_UPDATED", _SCORE_UPDATED).rstrip("/")
     path_part, _, query = template.partition("?")
     if "{id}" in path_part:
         formatted = path_part.format(id=record_id)
     else:
-        trimmed = re.sub(r"/\d+$", "/", path_part).rstrip("/")
+        trimmed = path_part.rstrip("/")
         formatted = f"{trimmed}/{record_id}"
     if query:
-        formatted = f"{formatted}?{query}"
+        formatted = f"{formatted}?{query}" if query else formatted
+    if "pk=id" not in formatted:
+        sep = "&" if "?" in formatted else "?"
+        formatted = f"{formatted}{sep}pk=id"
     return _absolute_url(formatted)
 
 
@@ -94,17 +97,47 @@ def _find_high_scorer(scores: list[Score], name: str) -> Score | None:
     return None
 
 
+def _is_better_score(new: Score, current: Score) -> bool:
+    if new.high_score != current.high_score:
+        return new.high_score > current.high_score
+    new_ts = new.date_modified or new.date_created
+    cur_ts = current.date_modified or current.date_created
+    if new_ts and cur_ts:
+        return new_ts > cur_ts
+    if new_ts and not cur_ts:
+        return True
+    return False
+
+
+def _dedupe_scores(scores: list[Score]) -> list[Score]:
+    best: dict[str, Score] = {}
+    for score in scores:
+        key = score.high_scorer.strip().lower()
+        candidate = best.get(key)
+        if candidate is None or _is_better_score(score, candidate):
+            best[key] = score
+    return list(best.values())
+
+
 def _parse_timestamp(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
     if value is None:
         return None
     if isinstance(value, str):
-        if re.fullmatch(r"\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:\d{2})?", value):
+        iso_value = value
+        if re.fullmatch(r"\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}(?::\d{2})?)?", value):
             today = datetime.now().date().isoformat()
-            value = f"{today}T{value}"
+            iso_value = f"{today}T{value}"
+        tz_match = re.search(r"([+-]\d{2})(?::?(\d{2}))?$", iso_value)
+        if tz_match:
+            hours = tz_match.group(1)
+            minutes = tz_match.group(2)
+            replacement = f"{hours}:{minutes or '00'}"
+            start = tz_match.start(1)
+            iso_value = iso_value[:start] + replacement
         try:
-            return datetime.fromisoformat(value)
+            return datetime.fromisoformat(iso_value)
         except ValueError:
             return None
     return None
@@ -137,7 +170,8 @@ def get_all_scores() -> list[Score]:
             scores.append(Score(**normalized))
         except ValidationError:
             continue
-    return sorted(scores, key=lambda s: s.high_score, reverse=True)
+    deduped = _dedupe_scores(scores)
+    return sorted(deduped, key=lambda s: s.high_score, reverse=True)
 
 
 def get_top_scores(limit: int = 3) -> list[Score]:
