@@ -8,19 +8,19 @@ load_dotenv()
 client = SarvamAI(
     api_subscription_key=os.getenv("SARVAM_API_KEY"),
 )
-
-
 def ask_sarvam(prompt: str, instruction: str):
     try:
         # print("\n".join([instruction, prompt]))
-        print(f"AI Request: {'\n'.join(prompt)}")
-        response = client.chat.completions(messages=[
-            {
-                "role": "user",
-                "content": "\n".join([instruction, prompt])
-            }
-        ])
-        print(f"AI Response: {response}")
+        response = client.chat.completions(
+            model="sarvam-m",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "\n".join([instruction, prompt])
+                }
+            ]
+        )
+
         res = response.choices[0].message.content
         return ClientResponse(status_code=200, details=res)
     except Exception as e:
