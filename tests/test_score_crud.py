@@ -31,22 +31,22 @@ def test_get_high_score_returns_none_when_no_scores(monkeypatch):
     assert score_crud.get_high_score() is None
 
 
-    def test_get_high_score_returns_highest(monkeypatch):
-        sample_scores = [
-            Score(id=1, high_score=10, high_scorer="alpha", date_created=datetime.now(timezone.utc)),
-            Score(id=2, high_score=100, high_scorer="beta", date_created=datetime.now(timezone.utc)),
-            Score(id=3, high_score=50, high_scorer="charlie", date_created=datetime.now(timezone.utc)),
-        ]
-        monkeypatch.setattr(
-            score_crud,
-            "get_all_scores",
-            lambda: sorted(sample_scores, key=lambda s: s.high_score, reverse=True),
-        )
+def test_get_high_score_returns_highest(monkeypatch):
+    sample_scores = [
+        Score(id=1, high_score=10, high_scorer="alpha", date_created=datetime.now(timezone.utc)),
+        Score(id=2, high_score=100, high_scorer="beta", date_created=datetime.now(timezone.utc)),
+        Score(id=3, high_score=50, high_scorer="charlie", date_created=datetime.now(timezone.utc)),
+    ]
+    monkeypatch.setattr(
+        score_crud,
+        "get_all_scores",
+        lambda: sorted(sample_scores, key=lambda s: s.high_score, reverse=True),
+    )
 
-        result = score_crud.get_high_score()
+    result = score_crud.get_high_score()
 
-        assert result.high_score == 100
-        assert result.high_scorer == "beta"
+    assert result.high_score == 100
+    assert result.high_scorer == "beta"
 
 
 def test_get_top_scores_limits(monkeypatch):
@@ -62,6 +62,22 @@ def test_get_top_scores_limits(monkeypatch):
 
     assert len(top_scores) == 3
     assert top_scores[0].high_score == 30
+
+
+def test_get_all_scores_dedupes(monkeypatch):
+    records = [
+        {"id": 1, "high_score": 5, "high_scorer": "tester", "date_modified": "2026-03-10T01:00:00Z"},
+        {"id": 2, "high_score": 8, "high_scorer": "Tester", "date_modified": "2026-03-10T01:10:00Z"},
+        {"id": 3, "high_score": 7, "high_scorer": "tester", "date_modified": "2026-03-10T01:05:00Z"},
+    ]
+
+    monkeypatch.setattr(score_crud, "_request", lambda *args, **kwargs: records)
+
+    results = score_crud.get_all_scores()
+
+    assert len(results) == 1
+    assert results[0].high_score == 8
+    assert results[0].id == 2
 
 
 def test_create_score_posts_payload(monkeypatch):
