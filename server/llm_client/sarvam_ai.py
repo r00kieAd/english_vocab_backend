@@ -13,12 +13,14 @@ client = SarvamAI(
 def ask_sarvam(prompt: str, instruction: str):
     try:
         # print("\n".join([instruction, prompt]))
+        print(f"AI Request: {'\n'.join(prompt)}")
         response = client.chat.completions(messages=[
             {
                 "role": "user",
                 "content": "\n".join([instruction, prompt])
             }
         ])
+        print(f"AI Response: {response}")
         res = response.choices[0].message.content
         return ClientResponse(status_code=200, details=res)
     except Exception as e:
